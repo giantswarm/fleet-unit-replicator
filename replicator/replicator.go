@@ -11,12 +11,18 @@ import (
 	"github.com/juju/errgo"
 )
 
+const (
+	fleetStateLaunched = "launched"
+	fleetStateLoaded   = "loaded"
+)
+
 var maskAny = errgo.MaskFunc(errgo.Any)
 var mask = errgo.MaskFunc()
 
 type Config struct {
-	TickerTime time.Duration
-	DeleteTime time.Duration
+	TickerTime         time.Duration
+	DeleteTime         time.Duration
+	UpdateCooldownTime time.Duration
 
 	MachineTag   string
 	UnitPrefix   string
@@ -34,6 +40,7 @@ type Service struct {
 	ticker         *time.Ticker
 	stats          Stats
 	undesiredState map[string]time.Time
+	lastUpdate     *time.Time
 }
 
 func New(cfg Config, deps Dependencies) *Service {
@@ -42,6 +49,8 @@ func New(cfg Config, deps Dependencies) *Service {
 		Dependencies:   deps,
 		stats:          Stats{},
 		undesiredState: map[string]time.Time{},
+		lastUpdate:     nil,
+		ticker:         nil,
 	}
 }
 
@@ -52,6 +61,10 @@ type Unit struct {
 
 func (srv *Service) Run() {
 	srv.ticker = time.NewTicker(srv.TickerTime)
+
+	if err := srv.Reconcile(); err != nil {
+		fmt.Printf("ERROR: %v\n", err)
+	}
 
 	for range srv.ticker.C {
 		fmt.Println("*tick*")
@@ -101,37 +114,91 @@ func (srv *Service) Reconcile() error {
 	return nil
 }
 
-func (srv *Service) createNewFleetUnit(desiredUnit Unit) error {
-	// TODO: Create unit
+func (srv *Service) unitToOptions(desiredUnit Unit) ([]*schema.UnitOption, error) {
 	unitContent := srv.UnitTemplate +
 		`
 		[X-Fleet]
-		MachineOf=` + desiredUnit.MachineID + `
+		MachineID=` + desiredUnit.MachineID + `
 		`
-
-	fmt.Println("Creating unit " + desiredUnit.Name + " with content \n" + unitContent)
 
 	uf, err := unit.NewUnitFile(unitContent)
 	if err != nil {
-		return mask(err)
+		return nil, mask(err)
 	}
-	options := schema.MapUnitFileToSchemaUnitOptions(uf)
+	return schema.MapUnitFileToSchemaUnitOptions(uf), nil
+}
+
+func (srv *Service) createNewFleetUnit(desiredUnit Unit) error {
+	options, err := srv.unitToOptions(desiredUnit)
+	if err != nil {
+		return maskAny(err)
+	}
+
 	fleetUnit := schema.Unit{
 		Name:         desiredUnit.Name,
 		Options:      options,
-		DesiredState: "launched",
+		DesiredState: fleetStateLaunched,
 	}
-	return maskAny(srv.Fleet.CreateUnit(&fleetUnit))
+	if err := srv.Fleet.CreateUnit(&fleetUnit); err != nil {
+		return maskAny(err)
+	}
+
+	fmt.Println("Waiting for " + desiredUnit.Name + " to come up.")
+	if err := waitForActiveUnit(srv.Fleet, desiredUnit.Name); err != nil {
+		return maskAny(err)
+	}
+	return nil
 }
 
 func (srv *Service) checkActiveUnitsForTemplateUpdate(units []Unit) error {
+	for _, unit := range units {
+		desiredOptions, err := srv.unitToOptions(unit)
+		if err != nil {
+			return maskAny(err)
+		}
+		fleetUnit, err := srv.Fleet.Unit(unit.Name)
+		if err != nil {
+			return maskAny(err)
+		}
+
+		if optionsEqual(desiredOptions, fleetUnit.Options) {
+			srv.stats.MarkActiveUnitNoUpdateRequired(unit)
+		} else {
+			srv.stats.MarkActiveUnitUpdateRequired(unit)
+
+			if err := srv.updateUnit(unit, desiredOptions); err != nil {
+				return maskAny(err)
+			}
+		}
+	}
+	return nil
+}
+
+func (srv *Service) updateUnit(unit Unit, options []*schema.UnitOption) error {
+	if srv.lastUpdate != nil && srv.lastUpdate.After(time.Now().Add(-srv.UpdateCooldownTime)) {
+		fmt.Println("Ignoring update due to cooldown time.")
+		srv.stats.UpdateUnitIgnoredCooldown(unit)
+		return nil
+	}
+
+	if err := srv.destroyUnit(unit); err != nil {
+		return maskAny(err)
+	}
+
+	t := time.Now()
+	srv.lastUpdate = &t
+
+	if err := srv.createNewFleetUnit(unit); err != nil {
+		return maskAny(err)
+	}
+
 	return nil
 }
 
 func (srv *Service) updateUndesiredState(desiredUnits, undesiredUnits []Unit) error {
 	for _, du := range desiredUnits {
 		if _, ok := srv.undesiredState[du.Name]; ok {
-			srv.stats.MarkUndesiredUnitAlive(du)
+			srv.stats.MarkUndesiredUnitBackToDesired(du)
 			delete(srv.undesiredState, du.Name)
 		}
 	}
@@ -142,12 +209,32 @@ func (srv *Service) updateUndesiredState(desiredUnits, undesiredUnits []Unit) er
 		if !ok {
 			srv.stats.MarkNewUndesiredUnit(udu)
 			srv.undesiredState[udu.Name] = time.Now()
+		} else {
+			if firstUndesired.Before(time.Now().Add(-srv.DeleteTime)) {
+				srv.stats.DeleteUndesiredUnit(udu)
+				if err := srv.destroyUnit(udu); err != nil {
+					return maskAny(err)
+				}
+				delete(srv.undesiredState, udu.Name)
+			}
 		}
+	}
+	return nil
+}
 
-		if firstUndesired.Before(time.Now().Add(-srv.DeleteTime)) {
-			fmt.Println("TODO: Delete unit " + udu.Name)
-			srv.stats.DeleteUndesiredUnit(udu)
-		}
+func (srv *Service) destroyUnit(unit Unit) error {
+
+	if err := srv.Fleet.SetUnitTargetState(unit.Name, fleetStateLoaded); err != nil {
+		return maskAny(err)
+	}
+
+	fmt.Println("Waiting for " + unit.Name + " to be stopped.")
+	if err := waitForDeadUnit(srv.Fleet, unit.Name); err != nil {
+		return maskAny(err)
+	}
+
+	if err := srv.Fleet.DestroyUnit(unit.Name); err != nil {
+		return maskAny(err)
 	}
 	return nil
 }
@@ -236,4 +323,24 @@ func (srv *Service) getManagedFleetUnits() ([]Unit, error) {
 	}
 	srv.stats.SeenManagedUnits(len(managedUnits))
 	return managedUnits, nil
+}
+
+func optionsEqual(left, right []*schema.UnitOption) bool {
+	if len(left) != len(right) {
+		return false
+	}
+
+	for _, i := range left {
+		found := false
+		for _, j := range right {
+			if i.Name == j.Name && i.Section == j.Section && i.Value == j.Value {
+				found = true
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+	return true
 }

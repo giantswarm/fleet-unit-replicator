@@ -21,8 +21,9 @@ var (
 )
 
 func init() {
-	pflag.DurationVar(&config.TickerTime, "ticket-timer", 60*time.Second, "Ticker time.")
+	pflag.DurationVar(&config.TickerTime, "ticker-time", 60*time.Second, "Ticker time.")
 	pflag.DurationVar(&config.DeleteTime, "delete-time", 60*time.Minute, "Time before deleting undesired units.")
+	pflag.DurationVar(&config.UpdateCooldownTime, "update-cooldown-time", 15*time.Minute, "Time between updates of changed units.")
 
 	pflag.StringVar(&config.MachineTag, "machine-tag", "", "The machine-tag to filter for.")
 	pflag.StringVar(&config.UnitTemplate, "unit-template", "", "The template to render for new units.")

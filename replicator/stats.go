@@ -22,9 +22,21 @@ func (stats *Stats) SeenManagedUnits(count int) {
 func (stats *Stats) MarkNewUndesiredUnit(unit Unit) {
 	logStats("MarkNewUndesiredUnit", 1)
 }
-func (stats *Stats) MarkUndesiredUnitAlive(unit Unit) {
-	logStats("MarkUndesiredUnitAlive", 1)
+func (stats *Stats) MarkUndesiredUnitBackToDesired(unit Unit) {
+	logStats("MarkUndesiredUnitBackToDesired", 1)
 }
 func (stats *Stats) DeleteUndesiredUnit(unit Unit) {
 	logStats("DeleteUnit", 1)
+}
+
+func (stats *Stats) MarkActiveUnitNoUpdateRequired(unit Unit) {
+	logStats("MarkActiveUnitNoUpdateRequired", 1)
+}
+
+func (stats *Stats) MarkActiveUnitUpdateRequired(unit Unit) {
+	logStats("MarkActiveUnitUpdateRequired", 1)
+}
+
+func (stats *Stats) UpdateUnitIgnoredCooldown(unit Unit) {
+	logStats("UpdateUnitIgnoredCooldown", 1)
 }
