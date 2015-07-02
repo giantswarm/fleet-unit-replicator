@@ -67,15 +67,52 @@ func (srv *Service) Reconcile() error {
 	desiredUnits := srv.transformMachinesToDesiredUnits(machines)
 
 	// Get managed fleet units
-	mangedUnits, err := srv.getManagedFleetUnits()
+	managedUnits, err := srv.getManagedFleetUnits()
 	if err != nil {
 		return maskAny(err)
 	}
+
+	newDesiredUnits, activeUnits, undesiredUnits := srv.Diff(desiredUnits, managedUnits)
 
 	return nil
 
 }
 
+func (srv *Service) Diff(desiredUnits, managedUnits []string) (newDesiredUnits, activeUnits, undesiredUnits []string) {
+
+	for _, i := range desiredUnits {
+		found := false
+		for _, j := range managedUnits {
+			if i == j {
+				found = true
+				break
+			}
+		}
+
+		if found {
+			activeUnits = append(activeUnits, i)
+		} else {
+			newDesiredUnits = append(newDesiredUnits, i)
+		}
+	}
+
+	for _, i := range managedUnits {
+		found := false
+		for _, j := range desiredUnits {
+			if i == j {
+				found = true
+				break
+			}
+		}
+
+		// NOTE: No else, since the found case is already handled above in the first loop
+		if !found {
+			undesiredUnits = append(undesiredUnits, i)
+		}
+	}
+
+	return
+}
 func (srv *Service) transformMachinesToDesiredUnits(machines []string) []string {
 	desiredUnits := []string{}
 
