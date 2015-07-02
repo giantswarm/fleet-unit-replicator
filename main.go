@@ -48,6 +48,7 @@ func fleetAPI() fleet.API {
 
 func main() {
 	fmt.Println("Fleet Unit Scheduler")
+	fmt.Println("====================")
 	pflag.Parse()
 
 	deps := replicator.Dependencies{
