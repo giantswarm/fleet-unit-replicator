@@ -46,3 +46,23 @@ func waitForDeadUnit(client client.API, unit string) error {
 func waitForActiveUnit(client client.API, unit string) error {
 	return waitForSystemdActiveState(client, unit, []string{"active"})
 }
+
+func unitOptionsEqual(left, right []*schema.UnitOption) bool {
+	if len(left) != len(right) {
+		return false
+	}
+
+	for _, i := range left {
+		found := false
+		for _, j := range right {
+			if i.Name == j.Name && i.Section == j.Section && i.Value == j.Value {
+				found = true
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+	return true
+}

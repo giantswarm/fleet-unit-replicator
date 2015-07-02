@@ -161,7 +161,7 @@ func (srv *Service) checkActiveUnitsForTemplateUpdate(units []Unit) error {
 			return maskAny(err)
 		}
 
-		if optionsEqual(desiredOptions, fleetUnit.Options) {
+		if unitOptionsEqual(desiredOptions, fleetUnit.Options) {
 			srv.stats.MarkActiveUnitNoUpdateRequired(unit)
 		} else {
 			srv.stats.MarkActiveUnitUpdateRequired(unit)
@@ -323,24 +323,4 @@ func (srv *Service) getManagedFleetUnits() ([]Unit, error) {
 	}
 	srv.stats.SeenManagedUnits(len(managedUnits))
 	return managedUnits, nil
-}
-
-func optionsEqual(left, right []*schema.UnitOption) bool {
-	if len(left) != len(right) {
-		return false
-	}
-
-	for _, i := range left {
-		found := false
-		for _, j := range right {
-			if i.Name == j.Name && i.Section == j.Section && i.Value == j.Value {
-				found = true
-			}
-		}
-
-		if !found {
-			return false
-		}
-	}
-	return true
 }
