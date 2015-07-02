@@ -2,6 +2,8 @@ package replicator
 
 import (
 	"time"
+
+	"github.com/coreos/fleet/client"
 )
 
 type Config struct {
@@ -14,16 +16,18 @@ type Config struct {
 }
 
 type Dependencies struct {
+	Fleet client.API
 }
 
 type Service struct {
 	Config
+	Dependencies
 }
 
-func New(cfg Config) *Service {
-	return &Service{cfg}
+func New(cfg Config, deps Dependencies) *Service {
+	return &Service{cfg, deps}
 }
 
-func (s *Service) Start() {
+func (s *Service) Run() {
 
 }
