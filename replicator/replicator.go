@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/coreos/fleet/client"
+	"github.com/coreos/fleet/schema"
+	"github.com/coreos/fleet/unit"
 	"github.com/juju/errgo"
 )
 
@@ -29,16 +31,23 @@ type Service struct {
 	Config
 	Dependencies
 
-	ticker *time.Ticker
-	stats  Stats
+	ticker         *time.Ticker
+	stats          Stats
+	undesiredState map[string]time.Time
 }
 
 func New(cfg Config, deps Dependencies) *Service {
 	return &Service{
-		Config:       cfg,
-		Dependencies: deps,
-		stats:        Stats{},
+		Config:         cfg,
+		Dependencies:   deps,
+		stats:          Stats{},
+		undesiredState: map[string]time.Time{},
 	}
+}
+
+type Unit struct {
+	Name      string
+	MachineID string
 }
 
 func (srv *Service) Run() {
@@ -72,18 +81,82 @@ func (srv *Service) Reconcile() error {
 		return maskAny(err)
 	}
 
+	// Now identify what needs to be done
 	newDesiredUnits, activeUnits, undesiredUnits := srv.Diff(desiredUnits, managedUnits)
 
-	return nil
+	for _, newUnit := range newDesiredUnits {
+		if err := srv.createNewFleetUnit(newUnit); err != nil {
+			return maskAny(err)
+		}
+	}
 
+	if err := srv.checkActiveUnitsForTemplateUpdate(activeUnits); err != nil {
+		return maskAny(err)
+	}
+
+	if err := srv.updateUndesiredState(desiredUnits, undesiredUnits); err != nil {
+		return maskAny(err)
+	}
+
+	return nil
 }
 
-func (srv *Service) Diff(desiredUnits, managedUnits []string) (newDesiredUnits, activeUnits, undesiredUnits []string) {
+func (srv *Service) createNewFleetUnit(desiredUnit Unit) error {
+	// TODO: Create unit
+	unitContent := srv.UnitTemplate +
+		`
+		[X-Fleet]
+		MachineOf=` + desiredUnit.MachineID + `
+		`
 
+	fmt.Println("Creating unit " + desiredUnit.Name + " with content \n" + unitContent)
+
+	uf, err := unit.NewUnitFile(unitContent)
+	if err != nil {
+		return mask(err)
+	}
+	options := schema.MapUnitFileToSchemaUnitOptions(uf)
+	fleetUnit := schema.Unit{
+		Name:         desiredUnit.Name,
+		Options:      options,
+		DesiredState: "launched",
+	}
+	return maskAny(srv.Fleet.CreateUnit(&fleetUnit))
+}
+
+func (srv *Service) checkActiveUnitsForTemplateUpdate(units []Unit) error {
+	return nil
+}
+
+func (srv *Service) updateUndesiredState(desiredUnits, undesiredUnits []Unit) error {
+	for _, du := range desiredUnits {
+		if _, ok := srv.undesiredState[du.Name]; ok {
+			srv.stats.MarkUndesiredUnitAlive(du)
+			delete(srv.undesiredState, du.Name)
+		}
+	}
+
+	for _, udu := range undesiredUnits {
+		firstUndesired, ok := srv.undesiredState[udu.Name]
+
+		if !ok {
+			srv.stats.MarkNewUndesiredUnit(udu)
+			srv.undesiredState[udu.Name] = time.Now()
+		}
+
+		if firstUndesired.Before(time.Now().Add(-srv.DeleteTime)) {
+			fmt.Println("TODO: Delete unit " + udu.Name)
+			srv.stats.DeleteUndesiredUnit(udu)
+		}
+	}
+	return nil
+}
+
+func (srv *Service) Diff(desiredUnits, managedUnits []Unit) (newDesiredUnits, activeUnits, undesiredUnits []Unit) {
 	for _, i := range desiredUnits {
 		found := false
 		for _, j := range managedUnits {
-			if i == j {
+			if i.Name == j.Name {
 				found = true
 				break
 			}
@@ -113,12 +186,15 @@ func (srv *Service) Diff(desiredUnits, managedUnits []string) (newDesiredUnits, 
 
 	return
 }
-func (srv *Service) transformMachinesToDesiredUnits(machines []string) []string {
-	desiredUnits := []string{}
+func (srv *Service) transformMachinesToDesiredUnits(machines []string) []Unit {
+	desiredUnits := []Unit{}
 
-	for m := range machines {
+	for _, m := range machines {
 		unit := fmt.Sprintf("%s-%s.service", srv.UnitPrefix, m)
-		desiredUnits = append(desiredUnits, unit)
+		desiredUnits = append(desiredUnits, Unit{
+			Name:      unit,
+			MachineID: m,
+		})
 	}
 	return desiredUnits
 }
@@ -136,24 +212,27 @@ func (srv *Service) getMachines() ([]string, error) {
 		if _, ok := m.Metadata[srv.MachineTag]; !ok {
 			continue
 		}
-		machines = append(machines, m.ShortID())
+		machines = append(machines, m.ID)
 	}
 	srv.stats.SeenMachinesActive(len(machines))
 	return machines, nil
 }
 
-func (srv *Service) getManagedFleetUnits() ([]string, error) {
+func (srv *Service) getManagedFleetUnits() ([]Unit, error) {
 	units, err := srv.Fleet.Units()
 	if err != nil {
 		return nil, maskAny(err)
 	}
 
-	managedUnits := []string{}
+	managedUnits := []Unit{}
 	for _, u := range units {
 		if !strings.HasPrefix(u.Name, srv.UnitPrefix) {
 			continue
 		}
-		managedUnits = append(managedUnits, u.Name)
+		managedUnits = append(managedUnits, Unit{
+			Name:      u.Name,
+			MachineID: u.MachineID,
+		})
 	}
 	srv.stats.SeenManagedUnits(len(managedUnits))
 	return managedUnits, nil

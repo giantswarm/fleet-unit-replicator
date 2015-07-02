@@ -18,3 +18,13 @@ func (stats *Stats) SeenMachinesActive(count int) {
 func (stats *Stats) SeenManagedUnits(count int) {
 	logStats("ManagedFleetUnits", count)
 }
+
+func (stats *Stats) MarkNewUndesiredUnit(unit Unit) {
+	logStats("MarkNewUndesiredUnit", 1)
+}
+func (stats *Stats) MarkUndesiredUnitAlive(unit Unit) {
+	logStats("MarkUndesiredUnitAlive", 1)
+}
+func (stats *Stats) DeleteUndesiredUnit(unit Unit) {
+	logStats("DeleteUnit", 1)
+}
