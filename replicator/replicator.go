@@ -60,14 +60,14 @@ func (srv *Service) Run() {
 	srv.ticker = time.NewTicker(srv.TickerTime)
 
 	if err := srv.Reconcile(); err != nil {
-		glog.Errorf("%v", err)
+		glog.Fatalf("%v", err)
 	}
 
 	for range srv.ticker.C {
 		glog.Info("*tick*")
 
 		if err := srv.Reconcile(); err != nil {
-			glog.Errorf("%v", err)
+			glog.Fatalf("%v", err)
 		}
 	}
 }
