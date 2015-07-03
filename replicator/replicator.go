@@ -8,6 +8,7 @@ import (
 	"github.com/coreos/fleet/client"
 	"github.com/coreos/fleet/schema"
 	"github.com/coreos/fleet/unit"
+	"github.com/golang/glog"
 	"github.com/juju/errgo"
 )
 
@@ -63,14 +64,14 @@ func (srv *Service) Run() {
 	srv.ticker = time.NewTicker(srv.TickerTime)
 
 	if err := srv.Reconcile(); err != nil {
-		fmt.Printf("ERROR: %v\n", err)
+		glog.Errorf("%v", err)
 	}
 
 	for range srv.ticker.C {
-		fmt.Println("*tick*")
+		glog.Info("*tick*")
 
 		if err := srv.Reconcile(); err != nil {
-			fmt.Printf("ERROR: %v\n", err)
+			glog.Errorf("%v", err)
 		}
 	}
 }
@@ -143,7 +144,7 @@ func (srv *Service) createNewFleetUnit(desiredUnit Unit) error {
 		return maskAny(err)
 	}
 
-	fmt.Println("Waiting for " + desiredUnit.Name + " to come up.")
+	glog.Infof("Waiting for %s to come up.", desiredUnit.Name)
 	if err := waitForActiveUnit(srv.Fleet, desiredUnit.Name); err != nil {
 		return maskAny(err)
 	}
@@ -176,7 +177,7 @@ func (srv *Service) checkActiveUnitsForTemplateUpdate(units []Unit) error {
 
 func (srv *Service) updateUnit(unit Unit, options []*schema.UnitOption) error {
 	if srv.lastUpdate != nil && srv.lastUpdate.After(time.Now().Add(-srv.UpdateCooldownTime)) {
-		fmt.Println("Ignoring update due to cooldown time.")
+		glog.Info("Ignoring update due to cooldown time.")
 		srv.stats.UpdateUnitIgnoredCooldown(unit)
 		return nil
 	}
@@ -228,7 +229,7 @@ func (srv *Service) destroyUnit(unit Unit) error {
 		return maskAny(err)
 	}
 
-	fmt.Println("Waiting for " + unit.Name + " to be stopped.")
+	glog.Infof("Waiting for %s to be stopped.", unit.Name)
 	if err := waitForDeadUnit(srv.Fleet, unit.Name); err != nil {
 		return maskAny(err)
 	}

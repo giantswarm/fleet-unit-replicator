@@ -1,9 +1,9 @@
 package replicator
 
-import "fmt"
+import "github.com/golang/glog"
 
 func logStats(s string, n int) {
-	fmt.Printf("[STATS] %s = %d\n", s, n)
+	glog.Infof("[STATS] %s = %d\n", s, n)
 }
 
 type Stats struct{}
