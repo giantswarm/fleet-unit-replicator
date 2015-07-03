@@ -12,11 +12,6 @@ import (
 	"github.com/juju/errgo"
 )
 
-const (
-	fleetStateLaunched = "launched"
-	fleetStateLoaded   = "loaded"
-)
-
 var maskAny = errgo.MaskFunc(errgo.Any)
 var mask = errgo.MaskFunc()
 
@@ -31,7 +26,8 @@ type Config struct {
 }
 
 type Dependencies struct {
-	Fleet client.API
+	Fleet    client.API
+	Operator FleetOperator
 }
 
 type Service struct {
@@ -135,19 +131,10 @@ func (srv *Service) createNewFleetUnit(desiredUnit Unit) error {
 		return maskAny(err)
 	}
 
-	fleetUnit := schema.Unit{
-		Name:         desiredUnit.Name,
-		Options:      options,
-		DesiredState: fleetStateLaunched,
-	}
-	if err := srv.Fleet.CreateUnit(&fleetUnit); err != nil {
+	if err := srv.Operator.CreateUnit(desiredUnit.Name, options); err != nil {
 		return maskAny(err)
 	}
 
-	glog.Infof("Waiting for %s to come up.", desiredUnit.Name)
-	if err := waitForActiveUnit(srv.Fleet, desiredUnit.Name); err != nil {
-		return maskAny(err)
-	}
 	return nil
 }
 
@@ -224,17 +211,7 @@ func (srv *Service) updateUndesiredState(desiredUnits, undesiredUnits []Unit) er
 }
 
 func (srv *Service) destroyUnit(unit Unit) error {
-
-	if err := srv.Fleet.SetUnitTargetState(unit.Name, fleetStateLoaded); err != nil {
-		return maskAny(err)
-	}
-
-	glog.Infof("Waiting for %s to be stopped.", unit.Name)
-	if err := waitForDeadUnit(srv.Fleet, unit.Name); err != nil {
-		return maskAny(err)
-	}
-
-	if err := srv.Fleet.DestroyUnit(unit.Name); err != nil {
+	if err := srv.Operator.DestroyUnit(unit.Name); err != nil {
 		return maskAny(err)
 	}
 	return nil
