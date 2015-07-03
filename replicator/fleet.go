@@ -7,7 +7,7 @@ import (
 	"github.com/coreos/fleet/schema"
 )
 
-func waitForSystemdActiveState(client client.API, unit string, allowedStates []string) error {
+func waitForSystemdState(client client.API, unit string, allowedStates []string) error {
 	seenDesiredState := 0
 	for {
 		states, err := client.UnitStates()
@@ -16,18 +16,21 @@ func waitForSystemdActiveState(client client.API, unit string, allowedStates []s
 		}
 
 		found := false
+		seenDesired := false
 		for _, state := range states {
 			if state.Name == unit {
 				found = true
 				for _, allowedState := range allowedStates {
 					if allowedState == state.SystemdActiveState {
-						seenDesiredState++
+						seenDesired = true
 					}
 				}
 			}
 		}
 
-		if !found {
+		if found && !seenDesired {
+			seenDesiredState = 0
+		} else {
 			seenDesiredState++
 		}
 
@@ -41,11 +44,11 @@ func waitForSystemdActiveState(client client.API, unit string, allowedStates []s
 }
 
 func waitForDeadUnit(client client.API, unit string) error {
-	return waitForSystemdActiveState(client, unit, []string{"failed", "dead", "inactive"})
+	return waitForSystemdState(client, unit, []string{"failed", "dead", "inactive"})
 }
 
 func waitForActiveUnit(client client.API, unit string) error {
-	return waitForSystemdActiveState(client, unit, []string{"active"})
+	return waitForSystemdState(client, unit, []string{"active"})
 }
 
 func unitOptionsEqual(left, right []*schema.UnitOption) bool {
