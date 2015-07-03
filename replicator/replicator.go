@@ -115,17 +115,17 @@ func (srv *Service) Reconcile() error {
 }
 
 func (srv *Service) unitToOptions(desiredUnit Unit) ([]*schema.UnitOption, error) {
-	unitContent := srv.UnitTemplate +
-		`
-		[X-Fleet]
-		MachineID=` + desiredUnit.MachineID + `
-		`
-
-	uf, err := unit.NewUnitFile(unitContent)
+	uf, err := unit.NewUnitFile(srv.UnitTemplate)
 	if err != nil {
 		return nil, mask(err)
 	}
-	return schema.MapUnitFileToSchemaUnitOptions(uf), nil
+	options := schema.MapUnitFileToSchemaUnitOptions(uf)
+	options = append(options, &schema.UnitOption{
+		Section: "X-Fleet",
+		Name:    "MachineID",
+		Value:   desiredUnit.MachineID,
+	})
+	return options, nil
 }
 
 func (srv *Service) createNewFleetUnit(desiredUnit Unit) error {
