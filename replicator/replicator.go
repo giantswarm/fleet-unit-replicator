@@ -92,7 +92,7 @@ func (srv *Service) Reconcile() error {
 	}
 
 	// Now identify what needs to be done
-	newDesiredUnits, activeUnits, undesiredUnits := srv.Diff(desiredUnits, managedUnits)
+	newDesiredUnits, activeUnits, undesiredUnits := diffUnits(desiredUnits, managedUnits)
 
 	for _, newUnit := range newDesiredUnits {
 		if err := srv.createNewFleetUnit(newUnit); err != nil {
@@ -217,40 +217,6 @@ func (srv *Service) destroyUnit(unit Unit) error {
 	return nil
 }
 
-func (srv *Service) Diff(desiredUnits, managedUnits []Unit) (newDesiredUnits, activeUnits, undesiredUnits []Unit) {
-	for _, i := range desiredUnits {
-		found := false
-		for _, j := range managedUnits {
-			if i.Name == j.Name {
-				found = true
-				break
-			}
-		}
-
-		if found {
-			activeUnits = append(activeUnits, i)
-		} else {
-			newDesiredUnits = append(newDesiredUnits, i)
-		}
-	}
-
-	for _, i := range managedUnits {
-		found := false
-		for _, j := range desiredUnits {
-			if i == j {
-				found = true
-				break
-			}
-		}
-
-		// NOTE: No else, since the found case is already handled above in the first loop
-		if !found {
-			undesiredUnits = append(undesiredUnits, i)
-		}
-	}
-
-	return
-}
 func (srv *Service) transformMachinesToDesiredUnits(machines []string) []Unit {
 	desiredUnits := []Unit{}
 
@@ -301,4 +267,39 @@ func (srv *Service) getManagedFleetUnits() ([]Unit, error) {
 	}
 	srv.stats.SeenManagedUnits(len(managedUnits))
 	return managedUnits, nil
+}
+
+func diffUnits(desiredUnits, managedUnits []Unit) (newDesiredUnits, activeUnits, undesiredUnits []Unit) {
+	for _, i := range desiredUnits {
+		found := false
+		for _, j := range managedUnits {
+			if i.Name == j.Name {
+				found = true
+				break
+			}
+		}
+
+		if found {
+			activeUnits = append(activeUnits, i)
+		} else {
+			newDesiredUnits = append(newDesiredUnits, i)
+		}
+	}
+
+	for _, i := range managedUnits {
+		found := false
+		for _, j := range desiredUnits {
+			if i == j {
+				found = true
+				break
+			}
+		}
+
+		// NOTE: No else, since the found case is already handled above in the first loop
+		if !found {
+			undesiredUnits = append(undesiredUnits, i)
+		}
+	}
+
+	return
 }

@@ -1,8 +1,6 @@
 package replicator
 
 import (
-	"fmt"
-
 	"github.com/coreos/fleet/client"
 	"github.com/coreos/fleet/schema"
 	"github.com/golang/glog"
