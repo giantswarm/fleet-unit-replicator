@@ -77,7 +77,17 @@ func replicatorConfig() replicator.Config {
 	}
 	return config
 }
-
+func replicatorDeps() replicator.Dependencies {
+	deps := replicator.Dependencies{
+		Fleet: fleetAPI(),
+	}
+	if *dryRun {
+		deps.Operator = &replicator.FleetROOperator{deps.Fleet}
+	} else {
+		deps.Operator = &replicator.FleetRWOperator{deps.Fleet}
+	}
+	return deps
+}
 func main() {
 	pflag.Parse()
 
@@ -91,15 +101,6 @@ func main() {
 	glog.Info("Fleet Unit Scheduler")
 	glog.Info("====================")
 
-	deps := replicator.Dependencies{
-		Fleet: fleetAPI(),
-	}
-	if *dryRun {
-		deps.Operator = &replicator.FleetROOperator{deps.Fleet}
-	} else {
-		deps.Operator = &replicator.FleetRWOperator{deps.Fleet}
-	}
-
-	repl := replicator.New(replicatorConfig(), deps)
+	repl := replicator.New(replicatorConfig(), replicatorDeps())
 	repl.Run()
 }
