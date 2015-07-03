@@ -37,7 +37,7 @@ func init() {
 	pflag.DurationVar(&config.UpdateCooldownTime, "update-cooldown-time", 15*time.Minute, "Time between updates of changed units.")
 
 	pflag.StringVar(&config.MachineTag, "machine-tag", "", "The machine-tag to filter for.")
-	pflag.StringVar(&config.UnitTemplate, "unit-template", "", "The template to render for new units.")
+	pflag.StringVar(&config.UnitTemplate, "unit-template", "", "The template to render for new units. Prefix with @ to load from a file.")
 	pflag.StringVar(&config.UnitPrefix, "unit-prefix", "", "The prefix for the units to identify.")
 
 	pflag.StringVar(&glogFlags.logToStderr, "logtostderr", "true", "log to standard error instead of files")
