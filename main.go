@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -36,7 +37,7 @@ func init() {
 	pflag.DurationVar(&config.UpdateCooldownTime, "update-cooldown-time", 15*time.Minute, "Time between updates of changed units.")
 
 	pflag.StringVar(&config.MachineTag, "machine-tag", "", "The machine-tag to filter for.")
-	pflag.StringVar(&config.UnitTemplate, "unit-template", "", "The template to render for new units.")
+	pflag.StringVar(&config.UnitTemplate, "unit-template", "", "The template to render for new units. Prefix with @ to load from a file.")
 	pflag.StringVar(&config.UnitPrefix, "unit-prefix", "", "The prefix for the units to identify.")
 
 	pflag.StringVar(&glogFlags.logToStderr, "logtostderr", "true", "log to standard error instead of files")
@@ -47,6 +48,9 @@ func init() {
 }
 
 func fleetAPI() fleet.API {
+	if *fleetEtcdPeers == "" {
+		glog.Fatalln("No --fleet-etcd-peers provided.")
+	}
 	// Code vaguely oriented on fleetctls getRegistryClient()
 	// https://github.com/coreos/fleet/blob/2e21d3bfd5959a70513c5e0d3c2500dc3c0811cf/fleetctl/fleetctl.go#L312
 	timeout := time.Duration(5 * time.Second)
@@ -56,7 +60,7 @@ func fleetAPI() fleet.API {
 
 	eClient, err := etcd.NewClient(machines, trans, timeout)
 	if err != nil {
-		panic("Failed to build etcd client: " + err.Error())
+		glog.Fatalln("Failed to build etcd client: " + err.Error())
 	}
 
 	reg := registry.NewEtcdRegistry(eClient, registry.DefaultKeyPrefix)
@@ -64,6 +68,38 @@ func fleetAPI() fleet.API {
 	return client
 }
 
+func replicatorConfig() replicator.Config {
+	if config.UnitTemplate == "" {
+		glog.Fatalln("No --unit-template provided.")
+	}
+	if config.UnitPrefix == "" {
+		glog.Fatalln("No --unit-prefix provided.")
+	}
+	if config.MachineTag == "" {
+		glog.Fatalln("No --machine-tag provided.")
+	}
+	if config.UnitTemplate[0] == '@' {
+		filepath := config.UnitTemplate[1:]
+		data, err := ioutil.ReadFile(filepath)
+		if err != nil {
+			glog.Fatalf("Failed to open template file %s: %v", filepath, err)
+		}
+
+		config.UnitTemplate = string(data)
+	}
+	return config
+}
+func replicatorDeps() replicator.Dependencies {
+	deps := replicator.Dependencies{
+		Fleet: fleetAPI(),
+	}
+	if *dryRun {
+		deps.Operator = &replicator.FleetROOperator{deps.Fleet}
+	} else {
+		deps.Operator = &replicator.FleetRWOperator{deps.Fleet}
+	}
+	return deps
+}
 func main() {
 	pflag.Parse()
 
@@ -77,15 +113,6 @@ func main() {
 	glog.Info("Fleet Unit Scheduler")
 	glog.Info("====================")
 
-	deps := replicator.Dependencies{
-		Fleet: fleetAPI(),
-	}
-	if *dryRun {
-		deps.Operator = &replicator.FleetROOperator{deps.Fleet}
-	} else {
-		deps.Operator = &replicator.FleetRWOperator{deps.Fleet}
-	}
-
-	repl := replicator.New(config, deps)
+	repl := replicator.New(replicatorConfig(), replicatorDeps())
 	repl.Run()
 }
