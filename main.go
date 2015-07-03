@@ -48,6 +48,9 @@ func init() {
 }
 
 func fleetAPI() fleet.API {
+	if *fleetEtcdPeers == "" {
+		glog.Fatalln("No --fleet-etcd-peers provided.")
+	}
 	// Code vaguely oriented on fleetctls getRegistryClient()
 	// https://github.com/coreos/fleet/blob/2e21d3bfd5959a70513c5e0d3c2500dc3c0811cf/fleetctl/fleetctl.go#L312
 	timeout := time.Duration(5 * time.Second)
@@ -57,7 +60,7 @@ func fleetAPI() fleet.API {
 
 	eClient, err := etcd.NewClient(machines, trans, timeout)
 	if err != nil {
-		panic("Failed to build etcd client: " + err.Error())
+		glog.Fatalln("Failed to build etcd client: " + err.Error())
 	}
 
 	reg := registry.NewEtcdRegistry(eClient, registry.DefaultKeyPrefix)
