@@ -66,6 +66,15 @@ func fleetAPI() fleet.API {
 }
 
 func replicatorConfig() replicator.Config {
+	if config.UnitTemplate == "" {
+		glog.Fatalln("No --unit-template provided.")
+	}
+	if config.UnitPrefix == "" {
+		glog.Fatalln("No --unit-prefix provided.")
+	}
+	if config.MachineTag == "" {
+		glog.Fatalln("No --machine-tag provided.")
+	}
 	if config.UnitTemplate[0] == '@' {
 		filepath := config.UnitTemplate[1:]
 		data, err := ioutil.ReadFile(filepath)
