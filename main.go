@@ -27,7 +27,7 @@ var (
 	}
 
 	fleetEtcdPeers = pflag.String("fleet-etcd-peers", "http://localhost:4001/", "List of peers for the fleet client (comma separated).")
-	fleetDryRun    = pflag.Bool("dry-run", true, "Do not write to fleet.")
+	dryRun         = pflag.Bool("dry-run", true, "Do not write to fleet.")
 )
 
 func init() {
@@ -80,7 +80,7 @@ func main() {
 	deps := replicator.Dependencies{
 		Fleet: fleetAPI(),
 	}
-	if *fleetDryRun {
+	if *dryRun {
 		deps.Operator = &replicator.FleetROOperator{deps.Fleet}
 	} else {
 		deps.Operator = &replicator.FleetRWOperator{deps.Fleet}
