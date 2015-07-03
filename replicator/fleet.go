@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/coreos/fleet/client"
+	"github.com/coreos/fleet/schema"
 )
 
 func waitForSystemdActiveState(client client.API, unit string, allowedStates []string) error {
