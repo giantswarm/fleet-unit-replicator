@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -64,6 +65,19 @@ func fleetAPI() fleet.API {
 	return client
 }
 
+func replicatorConfig() replicator.Config {
+	if config.UnitTemplate[0] == '@' {
+		filepath := config.UnitTemplate[1:]
+		data, err := ioutil.ReadFile(filepath)
+		if err != nil {
+			glog.Fatalf("Failed to open template file %s: %v", filepath, err)
+		}
+
+		config.UnitTemplate = string(data)
+	}
+	return config
+}
+
 func main() {
 	pflag.Parse()
 
@@ -86,6 +100,6 @@ func main() {
 		deps.Operator = &replicator.FleetRWOperator{deps.Fleet}
 	}
 
-	repl := replicator.New(config, deps)
+	repl := replicator.New(replicatorConfig(), deps)
 	repl.Run()
 }
