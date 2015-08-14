@@ -207,6 +207,9 @@ func (srv *Service) updateUndesiredState(desiredUnits, undesiredUnits []Unit) er
 			}
 		}
 	}
+
+	srv.stats.UndesiredUnitsGauge(len(srv.undesiredState))
+
 	return nil
 }
 
