@@ -56,7 +56,11 @@ type Unit struct {
 	MachineID string
 }
 
-func (srv *Service) Run() {
+func (srv *Service) Stop() {
+	srv.ticker.Stop()
+}
+
+func (srv *Service) Serve() {
 	srv.ticker = time.NewTicker(srv.TickerTime)
 
 	if err := srv.Reconcile(); err != nil {
