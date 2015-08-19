@@ -13,6 +13,7 @@ import (
 	fleet "github.com/coreos/fleet/client"
 	"github.com/coreos/fleet/etcd"
 	"github.com/coreos/fleet/registry"
+	"github.com/giantswarm/metrics"
 	"github.com/golang/glog"
 	"github.com/ogier/pflag"
 
@@ -21,6 +22,8 @@ import (
 
 var (
 	config = replicator.Config{}
+
+	metricFlags = metrics.RegisterMetricFlags(pflag.CommandLine)
 
 	glogFlags struct {
 		logToStderr     string
@@ -95,7 +98,8 @@ func replicatorConfig() replicator.Config {
 
 func replicatorDeps() replicator.Dependencies {
 	deps := replicator.Dependencies{
-		Fleet: fleetAPI(),
+		Fleet:   fleetAPI(),
+		Metrics: metricFlags.NewMetricsCollector(nil),
 	}
 	if *dryRun {
 		deps.Operator = &replicator.FleetROOperator{deps.Fleet}

@@ -9,6 +9,7 @@ import (
 	"github.com/coreos/fleet/client"
 	"github.com/coreos/fleet/schema"
 	"github.com/coreos/fleet/unit"
+	"github.com/giantswarm/metrics"
 	"github.com/golang/glog"
 	"github.com/juju/errgo"
 )
@@ -29,6 +30,7 @@ type Config struct {
 type Dependencies struct {
 	Fleet    client.API
 	Operator FleetOperator
+	Metrics  metrics.Collector
 }
 
 type Service struct {
@@ -46,7 +48,7 @@ func New(cfg Config, deps Dependencies) *Service {
 	return &Service{
 		Config:         cfg,
 		Dependencies:   deps,
-		stats:          Stats{},
+		stats:          Stats{deps.Metrics},
 		undesiredState: map[string]time.Time{},
 		lastUpdate:     nil,
 		ticker:         nil,
@@ -110,6 +112,8 @@ func (srv *Service) Reconcile() error {
 	// Now identify what needs to be done
 	newDesiredUnits, activeUnits, undesiredUnits := diffUnits(desiredUnits, managedUnits)
 
+	srv.stats.SeenUnitsTotal(len(managedUnits))
+	srv.stats.DesiredUnitsGauge(len(newDesiredUnits))
 	for _, newUnit := range newDesiredUnits {
 		if err := srv.createNewFleetUnit(newUnit); err != nil {
 			return maskAny(err)
@@ -155,6 +159,12 @@ func (srv *Service) createNewFleetUnit(desiredUnit Unit) error {
 }
 
 func (srv *Service) checkActiveUnitsForTemplateUpdate(units []Unit) error {
+
+	var (
+		noUpdateRequired int64 = 0
+		updateRequired   int64 = 0
+	)
+
 	for _, unit := range units {
 		desiredOptions, err := srv.unitToOptions(unit)
 		if err != nil {
@@ -166,15 +176,19 @@ func (srv *Service) checkActiveUnitsForTemplateUpdate(units []Unit) error {
 		}
 
 		if unitOptionsEqual(desiredOptions, fleetUnit.Options) {
-			srv.stats.MarkActiveUnitNoUpdateRequired(unit)
+			noUpdateRequired++
 		} else {
-			srv.stats.MarkActiveUnitUpdateRequired(unit)
+			updateRequired++
 
 			if err := srv.updateUnit(unit, desiredOptions); err != nil {
 				return maskAny(err)
 			}
 		}
 	}
+
+	srv.stats.ActiveUnitsSeen(len(units))
+	srv.stats.ActiveUnitsUpdateRequired(updateRequired)
+	srv.stats.ActiveUnitsNoUpdateRequired(noUpdateRequired)
 	return nil
 }
 
@@ -292,7 +306,6 @@ func (srv *Service) getManagedFleetUnits() ([]Unit, error) {
 			MachineID: u.MachineID,
 		})
 	}
-	srv.stats.SeenManagedUnits(len(managedUnits))
 	return managedUnits, nil
 }
 

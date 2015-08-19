@@ -67,8 +67,11 @@ deps:
 	@GOPATH=$(GOPATH) builder go get github.com/juju/errgo
 	@GOPATH=$(GOPATH) builder go get github.com/op/go-logging
 	@GOPATH=$(GOPATH) builder go get github.com/pingles/go-metrics-riemann
-	@GOPATH=$(GOPATH) builder go get github.com/rcrowley/go-metrics
+	@builder get dep -b influxdb git@github.com:giantswarm/go-metrics.git $(BUILD_PATH)/src/github.com/rcrowley/go-metrics
 	@GOPATH=$(GOPATH) builder go get github.com/golang/glog
+	@builder get dep -b v0.8.8 git@github.com:influxdb/influxdb.git $(BUILD_PATH)/src/github.com/influxdb/influxdb
+	
+	
 	# @GOPATH=$(GOPATH) builder go get github.com/inhies/go-tld
 	#
 	# Build test packages (we only want those two, so we use `-d` in go get)
