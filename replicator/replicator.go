@@ -64,22 +64,27 @@ func (srv *Service) Stop() {
 }
 
 func (srv *Service) Serve() {
-	srv.shutdownWG.Add(1)
-	defer func() {
-		srv.shutdownWG.Done()
-	}()
 	srv.ticker = time.NewTicker(srv.TickerTime)
 
-	if err := srv.Reconcile(); err != nil {
+	r := func() error {
+		glog.Info("*tick*")
+		srv.shutdownWG.Add(1)
+		defer func() {
+			srv.shutdownWG.Done()
+		}()
+
+		return srv.Reconcile()
+	}
+
+	if err := r(); err != nil {
 		glog.Fatalf("%v", err)
 	}
 
 	for range srv.ticker.C {
-		glog.Info("*tick*")
-
-		if err := srv.Reconcile(); err != nil {
+		if err := r(); err != nil {
 			glog.Fatalf("%v", err)
 		}
+
 	}
 }
 

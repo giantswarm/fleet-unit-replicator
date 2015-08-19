@@ -125,5 +125,6 @@ func main() {
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	<-ch
 
+	glog.Info("Received termination signal. Closing ...")
 	repl.Stop()
 }
