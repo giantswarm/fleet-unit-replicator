@@ -256,14 +256,22 @@ func (srv *Service) getMachines() ([]string, error) {
 	}
 	srv.stats.SeenMachinesTotal(len(fleetMachines))
 
+	// Build Machinelist
 	machines := []string{}
+
 	for _, m := range fleetMachines {
+		if srv.MachineTag == "" {
+			goto done
+		}
+
 		// NOTE: At GiantSwarm we are only interested on the left side of the tag. The right is always "true" for us.
 		if _, ok := m.Metadata[srv.MachineTag]; !ok {
 			continue
 		}
+	done:
 		machines = append(machines, m.ID)
 	}
+
 	srv.stats.SeenMachinesActive(len(machines))
 	return machines, nil
 }
