@@ -76,7 +76,7 @@ func replicatorConfig() replicator.Config {
 		glog.Fatalln("No --unit-prefix provided.")
 	}
 	if config.MachineTag == "" {
-		glog.Fatalln("No --machine-tag provided.")
+		glog.Warningln("No --machine-tag provided.")
 	}
 	if config.UnitTemplate[0] == '@' {
 		filepath := config.UnitTemplate[1:]
