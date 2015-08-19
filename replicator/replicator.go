@@ -3,6 +3,7 @@ package replicator
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coreos/fleet/client"
@@ -38,6 +39,7 @@ type Service struct {
 	stats          Stats
 	undesiredState map[string]time.Time
 	lastUpdate     *time.Time
+	shutdownWG     sync.WaitGroup
 }
 
 func New(cfg Config, deps Dependencies) *Service {
@@ -56,19 +58,33 @@ type Unit struct {
 	MachineID string
 }
 
-func (srv *Service) Run() {
+func (srv *Service) Stop() {
+	srv.ticker.Stop()
+	srv.shutdownWG.Wait()
+}
+
+func (srv *Service) Serve() {
 	srv.ticker = time.NewTicker(srv.TickerTime)
 
-	if err := srv.Reconcile(); err != nil {
+	r := func() error {
+		glog.Info("*tick*")
+		srv.shutdownWG.Add(1)
+		defer func() {
+			srv.shutdownWG.Done()
+		}()
+
+		return srv.Reconcile()
+	}
+
+	if err := r(); err != nil {
 		glog.Fatalf("%v", err)
 	}
 
 	for range srv.ticker.C {
-		glog.Info("*tick*")
-
-		if err := srv.Reconcile(); err != nil {
+		if err := r(); err != nil {
 			glog.Fatalf("%v", err)
 		}
+
 	}
 }
 
