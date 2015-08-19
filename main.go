@@ -5,7 +5,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	fleet "github.com/coreos/fleet/client"
@@ -90,6 +92,7 @@ func replicatorConfig() replicator.Config {
 	}
 	return config
 }
+
 func replicatorDeps() replicator.Dependencies {
 	deps := replicator.Dependencies{
 		Fleet: fleetAPI(),
@@ -101,6 +104,7 @@ func replicatorDeps() replicator.Dependencies {
 	}
 	return deps
 }
+
 func main() {
 	pflag.Parse()
 	os.Args = []string{os.Args[0]}
@@ -117,5 +121,12 @@ func main() {
 	glog.Info("====================")
 
 	repl := replicator.New(replicatorConfig(), replicatorDeps())
-	repl.Run()
+	go repl.Serve()
+
+	ch := make(chan os.Signal)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	<-ch
+
+	glog.Info("Received termination signal. Closing ...")
+	repl.Stop()
 }
