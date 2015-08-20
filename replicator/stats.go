@@ -1,53 +1,56 @@
 package replicator
 
-import "github.com/golang/glog"
+import (
+	"github.com/giantswarm/metrics"
+)
 
-func logStatsCounter(s string, delta int) {
-	if delta >= 0 {
-		glog.Infof("[STATS] %s: +%d\n", s, delta)
-	} else {
-		glog.Infof("[STATS] %s: %d\n", s, delta)
-	}
-
+type Stats struct {
+	metrics metrics.Collector
 }
-func logStatsGauge(s string, n int) {
-	glog.Infof("[STATS] %s: %d\n", s, n)
-}
-
-type Stats struct{}
 
 func (stats *Stats) SeenMachinesTotal(count int) {
-	logStatsGauge("seenMachinesTotal", count)
+	stats.metrics.Gauge(int64(count), "fleet", "machines", "total", "count")
 }
 func (stats *Stats) SeenMachinesActive(count int) {
-	logStatsGauge("seenMachinesActive", count)
+	stats.metrics.Gauge(int64(count), "fleet", "machines", "active", "count")
 }
 
-func (stats *Stats) SeenManagedUnits(count int) {
-	logStatsGauge("ManagedFleetUnits", count)
+func (stats *Stats) SeenUnitsTotal(count int) {
+	stats.metrics.Gauge(int64(count), "fleet", "units", "all", "count")
+}
+func (stats *Stats) SeenUnitsManaged(count int) {
+	stats.metrics.Gauge(int64(count), "fleet", "units", "all", "active")
 }
 
 func (stats *Stats) MarkNewUndesiredUnit(unit Unit) {
-	logStatsCounter("MarkNewUndesiredUnit", 1)
+	stats.metrics.Counter(1, "fleet", "units", "undesired", "new")
 }
 func (stats *Stats) MarkUndesiredUnitBackToDesired(unit Unit) {
-	logStatsCounter("MarkUndesiredUnitBackToDesired", 1)
+	stats.metrics.Counter(1, "fleet", "units", "undesired", "revived")
 }
 func (stats *Stats) DeleteUndesiredUnit(unit Unit) {
-	logStatsCounter("DeleteUnit", 1)
+	stats.metrics.Counter(1, "fleet", "units", "undesired", "delete_unit")
 }
 func (stats *Stats) UndesiredUnitsGauge(g int) {
-	logStatsGauge("UndesiredUnits", g)
+	stats.metrics.Gauge(int64(g), "fleet", "units", "undesired", "count")
 }
 
-func (stats *Stats) MarkActiveUnitNoUpdateRequired(unit Unit) {
-	logStatsCounter("MarkActiveUnitNoUpdateRequired", 1)
+func (stats *Stats) DesiredUnitsGauge(g int) {
+	stats.metrics.Gauge(int64(g), "fleet", "units", "desired", "count")
 }
 
-func (stats *Stats) MarkActiveUnitUpdateRequired(unit Unit) {
-	logStatsCounter("MarkActiveUnitUpdateRequired", 1)
+func (stats *Stats) ActiveUnitsSeen(g int) {
+	stats.metrics.Gauge(int64(g), "fleet", "units", "active", "count")
+}
+
+func (stats *Stats) ActiveUnitsNoUpdateRequired(g int64) {
+	stats.metrics.Gauge(g, "fleet", "units", "active", "no_update_required")
+}
+
+func (stats *Stats) ActiveUnitsUpdateRequired(g int64) {
+	stats.metrics.Gauge(g, "fleet", "units", "active", "update_required")
 }
 
 func (stats *Stats) UpdateUnitIgnoredCooldown(unit Unit) {
-	logStatsCounter("UpdateUnitIgnoredCooldown", 1)
+	stats.metrics.Counter(1, "fleet", "units", "active", "update_skipped_cooldown")
 }
