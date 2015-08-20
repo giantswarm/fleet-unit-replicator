@@ -45,7 +45,7 @@ func init() {
 
 	pflag.StringVar(&glogFlags.logToStderr, "logtostderr", "true", "log to standard error instead of files")
 	pflag.StringVar(&glogFlags.alsoLogToStderr, "alsologtostderr", "false", "log to standard error as well as files")
-	pflag.StringVar(&glogFlags.verbosity, "v", "1", "log level for V logs")
+	pflag.StringVarP(&glogFlags.verbosity, "verbose", "v", "1", "log level for V logs")
 	pflag.StringVar(&glogFlags.vmodule, "vmodule", "", "comma-separated list of pattern=N settings for file-filtered logging")
 	pflag.StringVar(&glogFlags.logBacktraceAt, "log_backtrace_at", "", "when logging hits line file:N, emit a stack trace")
 }
@@ -107,6 +107,8 @@ func replicatorDeps() replicator.Dependencies {
 
 func main() {
 	pflag.Parse()
+	os.Args = []string{os.Args[0]}
+	flag.Parse()
 
 	// flags have to be passed down to the flag package because glog reads from it.
 	flag.Set("logtostderr", glogFlags.logToStderr)
