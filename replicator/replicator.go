@@ -112,7 +112,6 @@ func (srv *Service) Reconcile() error {
 	// Now identify what needs to be done
 	newDesiredUnits, activeUnits, undesiredUnits := diffUnits(desiredUnits, managedUnits)
 
-	srv.stats.SeenUnitsTotal(len(managedUnits))
 	srv.stats.DesiredUnitsGauge(len(newDesiredUnits))
 	for _, newUnit := range newDesiredUnits {
 		if err := srv.createNewFleetUnit(newUnit); err != nil {
@@ -306,6 +305,9 @@ func (srv *Service) getManagedFleetUnits() ([]Unit, error) {
 			MachineID: u.MachineID,
 		})
 	}
+
+	srv.stats.SeenUnitsTotal(len(units))
+	srv.stats.SeenUnitsManaged(len(managedUnits))
 	return managedUnits, nil
 }
 

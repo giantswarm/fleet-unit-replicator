@@ -16,7 +16,10 @@ func (stats *Stats) SeenMachinesActive(count int) {
 }
 
 func (stats *Stats) SeenUnitsTotal(count int) {
-	stats.metrics.Gauge(int64(count), "fleet", "units", "total", "count")
+	stats.metrics.Gauge(int64(count), "fleet", "units", "all", "count")
+}
+func (stats *Stats) SeenUnitsManaged(count int) {
+	stats.metrics.Gauge(int64(count), "fleet", "units", "all", "active")
 }
 
 func (stats *Stats) MarkNewUndesiredUnit(unit Unit) {
