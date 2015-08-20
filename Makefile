@@ -49,13 +49,13 @@ deps:
 	@builder get dep -b v0.9.2 git@github.com:coreos/fleet.git $(GOPATH)/src/github.com/coreos/fleet
 	#
 	# Fetch private packages first (so `go get` skips them later)
-	# @builder get dep -b 0.3.0 git@github.com:giantswarm/metrics.git $(D0_PATH)/metrics
+	@builder get dep -b 0.3.0 git@github.com:giantswarm/metrics.git $(D0_PATH)/metrics
 	#
 	# Fetch pinned external dependencies
 	#@builder get dep -b 0.3.0 git@github.com:giantswarm/retry-go.git $(BUILD_PATH)/src/github.com/giantswarm/retry-go
 	#
 	## Fetch go-etcd compatible with etcd 0.4
-	@builder get dep -b release-0.4 git@github.com:coreos/go-etcd.git $(BUILD_PATH)/src/github.com/coreos/go-etcd
+	#@builder get dep -b release-0.4 git@github.com:coreos/go-etcd.git $(BUILD_PATH)/src/github.com/coreos/go-etcd
 	#
 	# Fetch public dependencies via `go get`
 	# All of the dependencies are listed here to make best use of caching in `builder go get`
@@ -69,6 +69,7 @@ deps:
 	@GOPATH=$(GOPATH) builder go get github.com/pingles/go-metrics-riemann
 	@builder get dep -b influxdb git@github.com:giantswarm/go-metrics.git $(BUILD_PATH)/src/github.com/rcrowley/go-metrics
 	@GOPATH=$(GOPATH) builder go get github.com/golang/glog
+	@GOPATH=$(GOPATH) builder go get github.com/golang/protobuf/proto
 	@builder get dep -b v0.8.8 git@github.com:influxdb/influxdb.git $(BUILD_PATH)/src/github.com/influxdb/influxdb
 	
 	
