@@ -36,7 +36,7 @@ var (
 	}
 
 	fleetDriver   = pflag.String("fleet-driver", "http", "The driver to use for connections to fleet. (http, etcd)")
-	fleetEndpoint = pflag.String("fleet-etcd-peers", "unix:///var/run/fleet.sock", "List of peers for the fleet client (comma separated).")
+	fleetEndpoint = pflag.String("fleet-peers", "unix:///var/run/fleet.sock", "List of peers for the fleet client (comma separated).")
 	dryRun        = pflag.Bool("dry-run", true, "Do not write to fleet.")
 )
 
