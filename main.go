@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -33,8 +35,9 @@ var (
 		logBacktraceAt  string
 	}
 
-	fleetEtcdPeers = pflag.String("fleet-etcd-peers", "http://localhost:4001/", "List of peers for the fleet client (comma separated).")
-	dryRun         = pflag.Bool("dry-run", true, "Do not write to fleet.")
+	fleetDriver   = pflag.String("fleet-driver", "http", "The driver to use for connections to fleet. (http, etcd)")
+	fleetEndpoint = pflag.String("fleet-etcd-peers", "unix:///var/run/fleet.sock", "List of peers for the fleet client (comma separated).")
+	dryRun        = pflag.Bool("dry-run", true, "Do not write to fleet.")
 )
 
 func init() {
@@ -54,24 +57,82 @@ func init() {
 }
 
 func fleetAPI() fleet.API {
-	if *fleetEtcdPeers == "" {
-		glog.Fatalln("No --fleet-etcd-peers provided.")
+	if *fleetEndpoint == "" {
+		glog.Fatalln("No --fleet-fleetEndpoint provided.")
 	}
-	// Code vaguely oriented on fleetctls getRegistryClient()
-	// https://github.com/coreos/fleet/blob/2e21d3bfd5959a70513c5e0d3c2500dc3c0811cf/fleetctl/fleetctl.go#L312
-	timeout := time.Duration(5 * time.Second)
-	machines := strings.Split(*fleetEtcdPeers, ",")
+	var fleetClient fleet.API
 
-	trans := &http.Transport{}
+	switch *fleetDriver {
+	case "http":
+		ep, err := url.Parse(*fleetEndpoint)
+		if err != nil {
+			glog.Fatal(err)
+		}
 
-	eClient, err := etcd.NewClient(machines, trans, timeout)
-	if err != nil {
-		glog.Fatalln("Failed to build etcd client: " + err.Error())
+		var trans http.RoundTripper
+
+		switch ep.Scheme {
+		case "unix", "file":
+			// This commonly happens if the user misses the leading slash after the scheme.
+			// For example, "unix://var/run/fleet.sock" would be parsed as host "var".
+			if len(ep.Host) > 0 {
+				glog.Fatalf("unable to connect to host %q with scheme %q\n", ep.Host, ep.Scheme)
+			}
+
+			// The Path field is only used for dialing and should not be used when
+			// building any further HTTP requests.
+			sockPath := ep.Path
+			ep.Path = ""
+
+			// http.Client doesn't support the schemes "unix" or "file", but it
+			// is safe to use "http" as dialFunc ignores it anyway.
+			ep.Scheme = "http"
+
+			// The Host field is not used for dialing, but will be exposed in debug logs.
+			ep.Host = "domain-sock"
+
+			trans = &http.Transport{
+				Dial: func(s, t string) (net.Conn, error) {
+					// http.Client does not natively support dialing a unix domain socket, so the
+					// dial function must be overridden.
+					return net.Dial("unix", sockPath)
+				},
+			}
+		case "http", "https":
+			trans = http.DefaultTransport
+		default:
+			glog.Fatalf("Unknown scheme in fleet fleetEndpoint: %s\n", ep.Scheme)
+		}
+
+		c := &http.Client{
+			Transport: trans,
+		}
+
+		fleetClient, err = fleet.NewHTTPClient(c, *ep)
+		if err != nil {
+			glog.Fatalf("Failed to create FleetHttpClient: %s\n", err)
+		}
+	case "etcd":
+		// Code vaguely oriented on fleetctls getRegistryClient()
+		// https://github.com/coreos/fleet/blob/2e21d3bfd5959a70513c5e0d3c2500dc3c0811cf/fleetctl/fleetctl.go#L312
+		timeout := time.Duration(5 * time.Second)
+		machines := strings.Split(*fleetEndpoint, ",")
+
+		trans := &http.Transport{}
+
+		eClient, err := etcd.NewClient(machines, trans, timeout)
+		if err != nil {
+			glog.Fatalln("Failed to build etcd client: " + err.Error())
+		}
+
+		reg := registry.NewEtcdRegistry(eClient, registry.DefaultKeyPrefix)
+		fleetClient = &fleet.RegistryClient{reg}
+	default:
+		glog.Fatalf("Unknown fleet driver: %s\n", *fleetDriver)
 	}
+	glog.Infof("using fleet driver: %s with fleetEndpoint: %s", *fleetDriver, *fleetEndpoint)
 
-	reg := registry.NewEtcdRegistry(eClient, registry.DefaultKeyPrefix)
-	client := &fleet.RegistryClient{reg}
-	return client
+	return fleetClient
 }
 
 func replicatorConfig() replicator.Config {
