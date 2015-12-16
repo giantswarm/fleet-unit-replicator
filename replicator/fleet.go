@@ -3,14 +3,15 @@ package replicator
 import (
 	"time"
 
-	"github.com/coreos/fleet/client"
 	"github.com/coreos/fleet/schema"
 )
 
-func waitForSystemdState(client client.API, unit string, allowedStates []string) error {
+type StatesFun func() ([]*schema.UnitState, error)
+
+func waitForSystemdState(statesFun StatesFun, unit string, allowedStates []string) error {
 	seenDesiredState := 0
 	for {
-		states, err := client.UnitStates()
+		states, err := statesFun()
 		if err != nil {
 			return maskAny(err)
 		}
@@ -43,12 +44,12 @@ func waitForSystemdState(client client.API, unit string, allowedStates []string)
 	return nil
 }
 
-func waitForDeadUnit(client client.API, unit string) error {
-	return waitForSystemdState(client, unit, []string{"failed", "dead", "inactive"})
+func waitForDeadUnit(statesFun StatesFun, unit string) error {
+	return waitForSystemdState(statesFun, unit, []string{"failed", "dead", "inactive"})
 }
 
-func waitForActiveUnit(client client.API, unit string) error {
-	return waitForSystemdState(client, unit, []string{"active"})
+func waitForActiveUnit(statesFun StatesFun, unit string) error {
+	return waitForSystemdState(statesFun, unit, []string{"active"})
 }
 
 func unitOptionsEqual(left, right []*schema.UnitOption) bool {

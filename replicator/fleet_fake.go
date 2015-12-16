@@ -1,14 +1,28 @@
 package replicator
 
 import (
+	"time"
+
 	"github.com/coreos/fleet/client"
 	"github.com/coreos/fleet/schema"
+	"github.com/giantswarm/retry-go"
 	"github.com/golang/glog"
 )
 
 const (
 	fleetStateLaunched = "launched"
 	fleetStateLoaded   = "loaded"
+)
+
+var (
+	writeRetryOptions = []retry.RetryOption{
+		retry.Sleep(500 * time.Millisecond),
+		retry.MaxTries(10),
+	}
+	readRetryOptions = []retry.RetryOption{
+		retry.Sleep(500 * time.Millisecond),
+		retry.MaxTries(10),
+	}
 )
 
 type FleetOperator interface {
@@ -20,35 +34,57 @@ type FleetRWOperator struct {
 	API client.API
 }
 
+func (ff *FleetRWOperator) fetchUnitStates() ([]*schema.UnitState, error) {
+	var states []*schema.UnitState
+	err := retry.Do(func() (err error) {
+		states, err = ff.API.UnitStates()
+		return maskAny(err)
+	}, readRetryOptions...)
+	return states, maskAny(err)
+}
+
 func (ff *FleetRWOperator) CreateUnit(unit string, options []*schema.UnitOption) error {
 	fleetUnit := schema.Unit{
 		Name:         unit,
 		Options:      options,
 		DesiredState: fleetStateLaunched,
 	}
-	if err := ff.API.CreateUnit(&fleetUnit); err != nil {
+
+	err := retry.Do(func() error {
+		return ff.API.CreateUnit(&fleetUnit)
+	}, writeRetryOptions...)
+	if err != nil {
 		return maskAny(err)
 	}
 
 	glog.Infof("Waiting for %s to come up.", unit)
-	if err := waitForActiveUnit(ff.API, unit); err != nil {
+
+	err = retry.Do(func() error {
+		return waitForActiveUnit(ff.fetchUnitStates, unit)
+	}, writeRetryOptions...)
+	if err != nil {
 		return maskAny(err)
 	}
 
 	return nil
 }
 func (ff *FleetRWOperator) DestroyUnit(unit string) error {
-
-	if err := ff.API.SetUnitTargetState(unit, fleetStateLoaded); err != nil {
+	err := retry.Do(func() error {
+		return ff.API.SetUnitTargetState(unit, fleetStateLoaded)
+	}, writeRetryOptions...)
+	if err != nil {
 		return maskAny(err)
 	}
 
 	glog.Infof("Waiting for %s to be stopped.", unit)
-	if err := waitForDeadUnit(ff.API, unit); err != nil {
+	if err := waitForDeadUnit(ff.fetchUnitStates, unit); err != nil {
 		return maskAny(err)
 	}
 
-	if err := ff.API.DestroyUnit(unit); err != nil {
+	err = retry.Do(func() error {
+		return ff.API.DestroyUnit(unit)
+	}, writeRetryOptions...)
+	if err != nil {
 		return maskAny(err)
 	}
 
