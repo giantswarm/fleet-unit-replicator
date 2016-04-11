@@ -201,6 +201,9 @@ func (srv *Service) updateUnit(unit Unit, options []*schema.UnitOption) error {
 	if err := srv.destroyUnit(unit); err != nil {
 		return maskAny(err)
 	}
+	// We suspect we might need to wait here for the unit to actually be deleted.
+	// Until we implement that, we just sleep as a workaround.
+	time.Sleep(15 * time.Second)
 
 	t := time.Now()
 	srv.lastUpdate = &t
