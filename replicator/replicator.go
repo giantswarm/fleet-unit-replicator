@@ -40,7 +40,8 @@ type Service struct {
 	ticker         *time.Ticker
 	stats          Stats
 	undesiredState map[string]time.Time
-	lastUpdate     *time.Time
+	resetCooldowntime chan struct{},
+	lastUpdate     *ExpiringBool
 	shutdownWG     sync.WaitGroup
 }
 
@@ -50,7 +51,8 @@ func New(cfg Config, deps Dependencies) *Service {
 		Dependencies:   deps,
 		stats:          Stats{deps.Metrics},
 		undesiredState: map[string]time.Time{},
-		lastUpdate:     nil,
+		resetCooldowntime: make(chan struct{}),
+		lastUpdate:     NewExpiringBool(config.UpdateCooldownTime),
 		ticker:         nil,
 	}
 }
@@ -70,6 +72,7 @@ func (srv *Service) Serve() {
 
 	r := func() error {
 		glog.Info("*tick*")
+		glog.Info("Time until lastUpdate resets: %v", c.lastUpdate.RemainingTime())
 		srv.shutdownWG.Add(1)
 		defer func() {
 			srv.shutdownWG.Done()
@@ -83,11 +86,20 @@ func (srv *Service) Serve() {
 	}
 
 	for range srv.ticker.C {
-		if err := r(); err != nil {
-			glog.Fatalf("%v", err)
+		select {
+		case <-srv.ticker.C:
+			if err := r(); err != nil {
+				glog.Fatalf("%v", err)
+			}
+		case <-srv.resetCooldowntime:
+			srv.lastUpdate.SetFalse()
 		}
 
 	}
+}
+
+func (srv *Service) ResetCooldowntime() {
+	srv.resetCooldowntime <- struct{}{}
 }
 
 func (srv *Service) Reconcile() error {
@@ -192,7 +204,7 @@ func (srv *Service) checkActiveUnitsForTemplateUpdate(units []Unit) error {
 }
 
 func (srv *Service) updateUnit(unit Unit, options []*schema.UnitOption) error {
-	if srv.lastUpdate != nil && srv.lastUpdate.After(time.Now().Add(-srv.UpdateCooldownTime)) {
+	if srv.lastUpdate.State() == true {
 		glog.Info("Ignoring update due to cooldown time.")
 		srv.stats.UpdateUnitIgnoredCooldown(unit)
 		return nil
@@ -205,8 +217,7 @@ func (srv *Service) updateUnit(unit Unit, options []*schema.UnitOption) error {
 	// Until we implement that, we just sleep as a workaround.
 	time.Sleep(15 * time.Second)
 
-	t := time.Now()
-	srv.lastUpdate = &t
+	srv.lastUpdate.SetTrue()
 
 	if err := srv.createNewFleetUnit(unit); err != nil {
 		return maskAny(err)
@@ -347,4 +358,44 @@ func diffUnits(desiredUnits, managedUnits []Unit) (newDesiredUnits, activeUnits,
 	}
 
 	return
+}
+
+func NewExpiringBool(cooldown time.Duration) *ExpiringBool {
+	return &ExpiringBool{
+		CooldownTime: cooldown,
+		LastTouch: nil,
+		now: time.Now,
+	}
+}
+
+// CooldownTime represents kindof a boolean that keeps its 'true' state only for a certain
+// amount of time.
+type ExpiringBool struct {
+	CooldownTime time.Duration
+	LastTouch *time.Time
+	now func() time.Time
+}
+
+func (c *ExpiringBool) State() bool {
+	if c.LastTouch != nil && c.LastTouch.After(c.now().Add(-c.CooldownTime)) {
+		return true
+	}
+	return false
+}
+
+// Touch updates the internal timestamp, so State() returns true until CooldownTime is over
+func (c *ExpiringBool) SetTrue() {
+	c.LastTouch = c.now()
+}
+
+// SetFalse resets the internal state.
+func (c *ExpiringBool) SetFalse() {
+	c.LastTouch = nil
+}
+
+func (c *ExpiringBool) RemainingTime() time.Duration {
+	if c.LastTouch == nil {
+		return 0
+	}
+	return c.LastTouch.Add(c.CooldownTime).Add(-1 * c.now())
 }

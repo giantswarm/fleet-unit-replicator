@@ -190,8 +190,21 @@ func main() {
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-	<-ch
 
+	for {
+		signal := <-ch
+
+		switch signal {
+		case syscall.SIGINT, syscall.SIGTERM:
+			goto shutdown
+		case syscall.SIGUSR1:
+			repl.ResetCooldowntime()
+		default:
+			glog.Warning("Unknown signal: %s", signal)
+		}
+	}
+
+shutdown:
 	glog.Info("Received termination signal. Closing ...")
 	repl.Stop()
 }
