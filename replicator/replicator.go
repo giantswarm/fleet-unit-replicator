@@ -85,16 +85,16 @@ func (srv *Service) Serve() {
 		glog.Fatalf("%v", err)
 	}
 
-	for range srv.ticker.C {
+	for {
 		select {
 		case <-srv.ticker.C:
 			if err := r(); err != nil {
 				glog.Fatalf("%v", err)
 			}
 		case <-srv.resetCooldowntime:
+			glog.Infof("Resetting cooldown time. Was at %s", srv.lastUpdate.RemainingTime())
 			srv.lastUpdate.SetFalse()
 		}
-
 	}
 }
 

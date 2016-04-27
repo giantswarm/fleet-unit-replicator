@@ -189,7 +189,7 @@ func main() {
 	go repl.Serve()
 
 	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
 
 	for {
 		signal := <-ch
