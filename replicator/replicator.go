@@ -72,7 +72,7 @@ func (srv *Service) Serve() {
 
 	r := func() error {
 		glog.Info("*tick*")
-		glog.Info("Time until lastUpdate resets: %v", srv.lastUpdate.RemainingTime())
+		glog.Infof("Time until lastUpdate resets: %s", srv.lastUpdate.RemainingTime())
 		srv.shutdownWG.Add(1)
 		defer func() {
 			srv.shutdownWG.Done()
