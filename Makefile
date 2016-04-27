@@ -71,8 +71,8 @@ deps:
 	@GOPATH=$(GOPATH) builder go get github.com/golang/glog
 	@GOPATH=$(GOPATH) builder go get github.com/golang/protobuf/proto
 	@builder get dep -b v0.8.8 git@github.com:influxdb/influxdb.git $(BUILD_PATH)/src/github.com/influxdb/influxdb
-	
-	
+
+
 	# @GOPATH=$(GOPATH) builder go get github.com/inhies/go-tld
 	#
 	# Build test packages (we only want those two, so we use `-d` in go get)
@@ -89,10 +89,10 @@ $(BIN): VERSION $(SOURCE)
 	    -e GOOS=$(GOOS) \
 	    -e GOARCH=$(GOARCH) \
 	    -w /usr/code \
-	    golang:1.4.2-cross \
-	    go build -a -ldflags "-X main.projectVersion $(VERSION) -X main.projectBuild $(COMMIT)" -o $(BIN)
+	    golang:1.6 \
+	    go build -a -ldflags "-X main.projectVersion=$(VERSION) -X main.projectBuild=$(COMMIT)" -o $(BIN)
 
-run-tests: 
+run-tests:
 	@make run-test test=./...
 
 run-test:
@@ -105,7 +105,7 @@ run-test:
 	    -v $(shell pwd):/usr/code \
 	    -e GOPATH=/usr/code/.gobuild \
 	    -w /usr/code \
-	    golang:1.4.2-cross \
+	    golang:1.6 \
 	    go test -v $(test)
 
 
