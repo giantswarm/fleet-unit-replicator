@@ -37,23 +37,23 @@ type Service struct {
 	Config
 	Dependencies
 
-	ticker         *time.Ticker
-	stats          Stats
-	undesiredState map[string]time.Time
-	resetCooldowntime chan struct{},
-	lastUpdate     *ExpiringBool
-	shutdownWG     sync.WaitGroup
+	ticker            *time.Ticker
+	stats             Stats
+	undesiredState    map[string]time.Time
+	resetCooldowntime chan struct{}
+	lastUpdate        *ExpiringBool
+	shutdownWG        sync.WaitGroup
 }
 
 func New(cfg Config, deps Dependencies) *Service {
 	return &Service{
-		Config:         cfg,
-		Dependencies:   deps,
-		stats:          Stats{deps.Metrics},
-		undesiredState: map[string]time.Time{},
+		Config:            cfg,
+		Dependencies:      deps,
+		stats:             Stats{deps.Metrics},
+		undesiredState:    map[string]time.Time{},
 		resetCooldowntime: make(chan struct{}),
-		lastUpdate:     NewExpiringBool(config.UpdateCooldownTime),
-		ticker:         nil,
+		lastUpdate:        NewExpiringBool(cfg.UpdateCooldownTime),
+		ticker:            nil,
 	}
 }
 
@@ -72,7 +72,7 @@ func (srv *Service) Serve() {
 
 	r := func() error {
 		glog.Info("*tick*")
-		glog.Info("Time until lastUpdate resets: %v", c.lastUpdate.RemainingTime())
+		glog.Info("Time until lastUpdate resets: %v", srv.lastUpdate.RemainingTime())
 		srv.shutdownWG.Add(1)
 		defer func() {
 			srv.shutdownWG.Done()
@@ -363,8 +363,8 @@ func diffUnits(desiredUnits, managedUnits []Unit) (newDesiredUnits, activeUnits,
 func NewExpiringBool(cooldown time.Duration) *ExpiringBool {
 	return &ExpiringBool{
 		CooldownTime: cooldown,
-		LastTouch: nil,
-		now: time.Now,
+		LastTouch:    nil,
+		now:          time.Now,
 	}
 }
 
@@ -372,8 +372,8 @@ func NewExpiringBool(cooldown time.Duration) *ExpiringBool {
 // amount of time.
 type ExpiringBool struct {
 	CooldownTime time.Duration
-	LastTouch *time.Time
-	now func() time.Time
+	LastTouch    *time.Time
+	now          func() time.Time
 }
 
 func (c *ExpiringBool) State() bool {
@@ -385,7 +385,8 @@ func (c *ExpiringBool) State() bool {
 
 // Touch updates the internal timestamp, so State() returns true until CooldownTime is over
 func (c *ExpiringBool) SetTrue() {
-	c.LastTouch = c.now()
+	t := c.now()
+	c.LastTouch = &t
 }
 
 // SetFalse resets the internal state.
@@ -397,5 +398,5 @@ func (c *ExpiringBool) RemainingTime() time.Duration {
 	if c.LastTouch == nil {
 		return 0
 	}
-	return c.LastTouch.Add(c.CooldownTime).Add(-1 * c.now())
+	return c.LastTouch.Add(c.CooldownTime).Sub(c.now())
 }

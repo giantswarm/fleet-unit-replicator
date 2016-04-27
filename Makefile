@@ -90,7 +90,7 @@ $(BIN): VERSION $(SOURCE)
 	    -e GOARCH=$(GOARCH) \
 	    -w /usr/code \
 	    golang:1.6 \
-	    go build -a -ldflags "-X main.projectVersion $(VERSION) -X main.projectBuild $(COMMIT)" -o $(BIN)
+	    go build -a -ldflags "-X main.projectVersion=$(VERSION) -X main.projectBuild=$(COMMIT)" -o $(BIN)
 
 run-tests:
 	@make run-test test=./...
