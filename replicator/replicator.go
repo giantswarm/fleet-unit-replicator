@@ -368,7 +368,7 @@ func NewExpiringBool(cooldown time.Duration) *ExpiringBool {
 	}
 }
 
-// CooldownTime represents kindof a boolean that keeps its 'true' state only for a certain
+// ExpiringBool represents kindof a boolean that keeps its 'true' state only for a certain
 // amount of time.
 type ExpiringBool struct {
 	CooldownTime time.Duration
